@@ -1,9 +1,11 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import BookEvent from "@/components/BookEvent";
 import { getSimilarEventsBySlug } from "@/lib/actions/event.actions";
 import { IEvent } from "@/database/event.model";
 import EventCard from "@/components/EventCard";
+import { cacheLife } from "next/cache";
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 
 const EventDetailItem = ({ icon, alt, label }: { icon: string, alt: string, label: string }) => {
@@ -39,6 +41,8 @@ const EventTags = ({ tags }: { tags: string[] }) => {
 }
 
 const EventDetailsPage = async ({ params }: { params: Promise<{ slug: string }> }) => {
+    'use cache';
+    cacheLife('hours');
     const { slug } = await params;
     const request = await fetch(`${BASE_URL}/api/events/${slug}`);
     const { event: {
@@ -53,7 +57,8 @@ const EventDetailsPage = async ({ params }: { params: Promise<{ slug: string }> 
         agenda,
         audience,
         tags,
-        organizer
+        organizer,
+        _id
     } } = await request.json();
 
     if (!description) {
@@ -112,7 +117,7 @@ const EventDetailsPage = async ({ params }: { params: Promise<{ slug: string }> 
                             <p className="text-sm">Be the first to book your spot!</p>
                         )}
 
-                        <BookEvent />
+                        <BookEvent eventId={_id} slug={slug} />
                     </div>
                 </aside>
             </div>
@@ -132,4 +137,21 @@ const EventDetailsPage = async ({ params }: { params: Promise<{ slug: string }> 
     )
 }
 
-export default EventDetailsPage;
+// 预渲染时先展示占位，避免 params 阻塞整条路由
+const EventDetailsFallback = () => {
+    return (
+        <section id="event">
+            <p>Loading...</p>
+        </section>
+    )
+}
+
+const Page = ({ params }: { params: Promise<{ slug: string }> }) => {
+    return (
+        <Suspense fallback={<EventDetailsFallback />}>
+            <EventDetailsPage params={params} />
+        </Suspense>
+    )
+}
+
+export default Page;
